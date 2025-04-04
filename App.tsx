@@ -1,79 +1,83 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// App.tsx
+import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import SignInScreen from './Auth/SignInScreen';
+import SignUpScreen from './Auth/SignUpScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import TaskListScreen from './screens/TaskListScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import { supabase } from './supabaseClient';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('Dashboard');
 
-  const renderScreen = () => {
-    switch (activeTab) {
-      case 'Dashboard':
-        return <DashboardScreen />;
-      case 'Tasks':
-        return <TaskListScreen />;
-      case 'Profile':
-        return <ProfileScreen />;
-      case 'Settings':
-        return <SettingsScreen />;
-      default:
-        return <DashboardScreen />;
-    }
-  };
+const AuthStack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
+function AuthStackNavigator({ setUser }: { setUser: (user: any) => void }) {
   return (
-    <View style={{ flex: 1 }}>
-      {renderScreen()}
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('Dashboard')}>
-          <Ionicons name="home-outline" size={24} color={activeTab === 'Dashboard' ? "#007AFF" : "#8e8e93"} />
-          <Text style={activeTab === 'Dashboard' ? styles.activeTabText : styles.inactiveTabText}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('Tasks')}>
-          <Ionicons name="list-outline" size={24} color={activeTab === 'Tasks' ? "#007AFF" : "#8e8e93"} />
-          <Text style={activeTab === 'Tasks' ? styles.activeTabText : styles.inactiveTabText}>
-            Tasks
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('Profile')}>
-          <Ionicons name="person-outline" size={24} color={activeTab === 'Profile' ? "#007AFF" : "#8e8e93"} />
-          <Text style={activeTab === 'Profile' ? styles.activeTabText : styles.inactiveTabText}>
-            Profile
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setActiveTab('Settings')}>
-          <Ionicons name="settings" size={24} color={activeTab === 'Settings' ? "#007AFF" : "#8e8e93"} />
-          <Text style={activeTab === 'Settings' ? styles.activeTabText : styles.inactiveTabText}>
-            Settings
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <AuthStack.Navigator initialRouteName="SignIn" screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="SignIn">
+        {(props) => <SignInScreen {...props} setUser={setUser} />}
+      </AuthStack.Screen>
+      <AuthStack.Screen name="SignUp" component={SignUpScreen} />
+    </AuthStack.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#f7f7f7',
-    paddingVertical: 10,
-  },
-  tabButton: {
-    alignItems: 'center',
-  },
-  activeTabText: {
-    color: '#007AFF',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  inactiveTabText: {
-    color: '#8e8e93',
-    fontSize: 12,
-  },
-});
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ color, size }) => {
+        let iconName: 'home-outline' | 'list-outline' | 'person-outline' | 'settings-outline' | undefined;
+          if (route.name === 'Dashboard') {
+            iconName = 'home-outline';
+          } else if (route.name === 'Tasks List') {
+            iconName = 'list-outline';
+          } else if (route.name === 'Profile') {
+            iconName = 'person-outline';
+          }else if (route.name === 'Settings') {
+            iconName = 'settings-outline';
+          }
+          
+          // You can add more conditions for other tabs
+          return iconName ? <Ionicons name={iconName} size={size} color={color} /> : null;
+        },
+      })}>
+      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen name="Tasks List" component={TaskListScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Settings" component={SettingsScreen} />
+    </Tab.Navigator>
+  );
+}
+
+export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+      }
+      setIsAuthReady(true);
+    }
+    checkSession();
+  }, []);
+
+  if (!isAuthReady) {
+    // Optionally, render a splash screen or loader here
+    return null;
+  }
+
+  return (
+    <NavigationContainer>
+      {user ? <MainTabNavigator /> : <AuthStackNavigator setUser={setUser} />}
+    </NavigationContainer>
+  );
+}
