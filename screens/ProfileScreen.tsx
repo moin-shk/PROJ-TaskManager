@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Platform } 
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabaseClient';
 import { useNavigation } from '@react-navigation/native';
+import Dialog from 'react-native-dialog';
 
 interface UserProfile {
   first_name: string;
@@ -23,24 +24,29 @@ export default function ProfileScreen({ setUser }: ProfileScreenProps) {
     email: '',
   });
 
-  // Inline update for name
+  // Inline update for name (remains unchanged)
   const [showUpdateName, setShowUpdateName] = useState(false);
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
+
+  // State for Android password update dialog
+  const [isPasswordDialogVisible, setIsPasswordDialogVisible] = useState(false);
+  const [passwordStep, setPasswordStep] = useState<'current' | 'new' | 'confirm'>('current');
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
   useEffect(() => {
     fetchUserData();
   }, []);
 
   async function fetchUserData() {
-    // Get the current authenticated user.
     const { data: userResponse, error: userError } = await supabase.auth.getUser();
     if (userError || !userResponse?.user) {
       console.error('Error getting user:', userError?.message);
       return;
     }
     const currentUser = userResponse.user;
-    // Query the "User" table for first_name, last_name, and email.
     const { data, error } = await supabase
       .from('User')
       .select('first_name, last_name, email')
@@ -54,7 +60,6 @@ export default function ProfileScreen({ setUser }: ProfileScreenProps) {
         last_name: data.last_name,
         email: data.email,
       });
-      // Pre-fill the inline update fields.
       setNewFirstName(data.first_name);
       setNewLastName(data.last_name);
     }
@@ -109,57 +114,110 @@ export default function ProfileScreen({ setUser }: ProfileScreenProps) {
     }
   }
 
+  // Password update function supporting both iOS and Android.
   async function handleUpdatePassword() {
-    if (Platform.OS !== 'ios') {
-      Alert.alert('Not Supported', 'Password update via prompt is only supported on iOS.');
-      return;
+    if (Platform.OS === 'ios') {
+      // iOS: Use Alert.prompt flow as before.
+      Alert.prompt(
+        'Current Password',
+        'Enter your current password:',
+        async (currentPassword) => {
+          if (!currentPassword) return;
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: userProfile.email,
+            password: currentPassword,
+          });
+          if (signInError || !signInData.user) {
+            Alert.alert('Error', 'Current password is incorrect. Please try again.');
+            return;
+          }
+          Alert.prompt(
+            'New Password',
+            'Enter your new password:',
+            (newPassword) => {
+              if (!newPassword) return;
+              Alert.prompt(
+                'Confirm New Password',
+                'Re-enter your new password:',
+                async (confirmPassword) => {
+                  if (newPassword !== confirmPassword) {
+                    Alert.alert('Error', 'New passwords do not match. Please try again.');
+                    return;
+                  }
+                  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+                  if (updateError) {
+                    Alert.alert('Error updating password', updateError.message);
+                  } else {
+                    Alert.alert('Success', 'Password updated successfully.');
+                  }
+                },
+                'secure-text'
+              );
+            },
+            'secure-text'
+          );
+        },
+        'secure-text'
+      );
+    } else {
+      // Android: Use a dialog flow.
+      // Initialize dialog state
+      setPasswordStep('current');
+      setCurrentPasswordInput('');
+      setNewPasswordInput('');
+      setConfirmPasswordInput('');
+      setIsPasswordDialogVisible(true);
     }
-    // Prompt for current password.
-    Alert.prompt(
-      'Current Password',
-      'Enter your current password:',
-      async (currentPassword) => {
-        if (!currentPassword) return;
-        // Verify current password by attempting to sign in.
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: userProfile.email,
-          password: currentPassword,
-        });
-        if (signInError || !signInData.user) {
-          Alert.alert('Error', 'Current password is incorrect. Please try again.');
-          return;
-        }
-        // Prompt for new password.
-        Alert.prompt(
-          'New Password',
-          'Enter your new password:',
-          (newPassword) => {
-            if (!newPassword) return;
-            // Prompt to confirm new password.
-            Alert.prompt(
-              'Confirm New Password',
-              'Re-enter your new password:',
-              async (confirmPassword) => {
-                if (newPassword !== confirmPassword) {
-                  Alert.alert('Error', 'New passwords do not match. Please try again.');
-                  return;
-                }
-                // Update the password.
-                const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-                if (updateError) {
-                  Alert.alert('Error updating password', updateError.message);
-                } else {
-                  Alert.alert('Success', 'Password updated successfully.');
-                }
-              },
-              'secure-text'
-            );
-          },
-          'secure-text'
-        );
-      },
-      'secure-text'
-    );
+  }
+
+  // Function to handle Android dialog submission.
+  async function handleAndroidPasswordDialogSubmit() {
+    if (passwordStep === 'current') {
+      // Verify current password
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: userProfile.email,
+        password: currentPasswordInput,
+      });
+      if (signInError || !signInData.user) {
+        Alert.alert('Error', 'Current password is incorrect. Please try again.');
+        // Reset dialog for current password
+        setCurrentPasswordInput('');
+        return;
+      }
+      // Proceed to new password step.
+      setPasswordStep('new');
+      setCurrentPasswordInput(''); // Optionally clear current password
+    } else if (passwordStep === 'new') {
+      if (!newPasswordInput) {
+        Alert.alert('Error', 'Please enter a new password.');
+        return;
+      }
+      // Proceed to confirmation step.
+      setPasswordStep('confirm');
+    } else if (passwordStep === 'confirm') {
+      if (newPasswordInput !== confirmPasswordInput) {
+        Alert.alert('Error', 'New passwords do not match. Please try again.');
+        // Reset new password inputs and go back to new step.
+        setNewPasswordInput('');
+        setConfirmPasswordInput('');
+        setPasswordStep('new');
+        return;
+      }
+      // All steps verified; update the password.
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPasswordInput });
+      if (updateError) {
+        Alert.alert('Error updating password', updateError.message);
+      } else {
+        Alert.alert('Success', 'Password updated successfully.');
+      }
+      // Hide the dialog.
+      setIsPasswordDialogVisible(false);
+    }
+  }
+
+  // Function to handle Android dialog cancellation.
+  function handleAndroidPasswordDialogCancel() {
+    setIsPasswordDialogVisible(false);
   }
 
   return (
@@ -202,6 +260,47 @@ export default function ProfileScreen({ setUser }: ProfileScreenProps) {
         <Ionicons name="log-out-outline" size={20} color="#fff" />
         <Text style={styles.logoutButtonText}>Log Out</Text>
       </TouchableOpacity>
+
+      {/* Android Password Update Dialog */}
+      {Platform.OS === 'android' && isPasswordDialogVisible && (
+        <Dialog.Container visible={isPasswordDialogVisible}>
+          {passwordStep === 'current' && (
+            <>
+              <Dialog.Title>Current Password</Dialog.Title>
+              <Dialog.Input
+                placeholder="Enter current password"
+                secureTextEntry
+                value={currentPasswordInput}
+                onChangeText={setCurrentPasswordInput}
+              />
+            </>
+          )}
+          {passwordStep === 'new' && (
+            <>
+              <Dialog.Title>New Password</Dialog.Title>
+              <Dialog.Input
+                placeholder="Enter new password"
+                secureTextEntry
+                value={newPasswordInput}
+                onChangeText={setNewPasswordInput}
+              />
+            </>
+          )}
+          {passwordStep === 'confirm' && (
+            <>
+              <Dialog.Title>Confirm New Password</Dialog.Title>
+              <Dialog.Input
+                placeholder="Re-enter new password"
+                secureTextEntry
+                value={confirmPasswordInput}
+                onChangeText={setConfirmPasswordInput}
+              />
+            </>
+          )}
+          <Dialog.Button label="Cancel" onPress={handleAndroidPasswordDialogCancel} />
+          <Dialog.Button label="OK" onPress={handleAndroidPasswordDialogSubmit} />
+        </Dialog.Container>
+      )}
     </View>
   );
 }
