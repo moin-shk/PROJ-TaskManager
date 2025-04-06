@@ -1,20 +1,52 @@
-// Auth/SignInScreen.tsx
-import React, { useState } from 'react';
+// screens/SignInScreen.tsx
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRoute } from '@react-navigation/native';
 import { supabase } from '../supabaseClient';
 
 export default function SignInScreen({ navigation, setUser }: { navigation: any; setUser: (user: any) => void }) {
-  const [email, setEmail] = useState('');
+  const route = useRoute();
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName]   = useState('');
+
+  // Pre-populate fields if data was passed from SignUp.
+  useEffect(() => {
+    if (route.params) {
+      const params: any = route.params;
+      if (params.email) setEmail(params.email);
+      if (params.password) setPassword(params.password);
+      if (params.firstName) setFirstName(params.firstName);
+      if (params.lastName) setLastName(params.lastName);
+    }
+  }, [route.params]);
 
   async function handleSignIn() {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      alert("Sign in error: " + error.message);
-    } else if (data.user) {
-      // Instead of navigating manually, update the global user state.
+    // Create the account first (if it doesn't exist) using signUp.
+    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    // If signUp returns an error that isn't about duplicate registration, alert the error.
+    if (signUpError && !signUpError.message.toLowerCase().includes("duplicate")) {
+      alert("Sign up error: " + signUpError.message);
+      return;
+    }
+    // Now sign in with the provided credentials.
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      alert("Sign in error: " + signInError.message);
+      return;
+    }
+    if (data.user) {
+      // Optionally insert the user details into your "User" table.
+      // Since RLS is disabled, there's no policy check here.
+      await supabase.from("User").insert([{ 
+        uuid: data.user.id, 
+        first_name: firstName, 
+        last_name: lastName, 
+        email 
+      }]);
+      // Update the global user state.
       setUser(data.user);
-      // Once setUser is called, App.tsx will re-render and display MainTabNavigator.
     }
   }
 
@@ -32,8 +64,8 @@ export default function SignInScreen({ navigation, setUser }: { navigation: any;
         placeholder="Password" 
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         style={styles.input}
+        secureTextEntry
       />
       <TouchableOpacity style={styles.button} onPress={handleSignIn}>
         <Text style={styles.buttonText}>Sign In</Text>

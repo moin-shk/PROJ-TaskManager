@@ -1,31 +1,16 @@
-// Auth/SignUpScreen.tsx
+// screens/SignUpScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
-import { supabase } from '../supabaseClient';
 
 export default function SignUpScreen({ navigation }: { navigation: any }) {
   const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [lastName, setLastName]   = useState('');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
 
-  async function handleSignUp() {
-    // Sign up the user with Supabase
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      alert("Sign up error: " + error.message);
-    } else if (data.user) {
-      // Insert extra details into the "User" table
-      const { error: insertError } = await supabase
-        .from("User")
-        .insert([{ uuid: data.user.id, first_name: firstName, last_name: lastName, email }]);
-      if (insertError) {
-        alert("Error inserting user details: " + insertError.message);
-      } else {
-        alert("Sign up successful! Please sign in.");
-        navigation.navigate('SignIn');
-      }
-    }
+  function handleProceedToSignIn() {
+    // Pass sign-up information to SignInScreen via route parameters.
+    navigation.navigate('SignIn', { firstName, lastName, email, password });
   }
 
   return (
@@ -54,11 +39,11 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         placeholder="Password" 
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         style={styles.input}
+        secureTextEntry
       />
-      <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-        <Text style={styles.buttonText}>Sign Up</Text>
+      <TouchableOpacity style={styles.button} onPress={handleProceedToSignIn}>
+        <Text style={styles.buttonText}>Proceed to Sign In</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.linkButton} onPress={() => navigation.navigate('SignIn')}>
         <Text style={styles.linkButtonText}>Already have an account? Sign In</Text>
