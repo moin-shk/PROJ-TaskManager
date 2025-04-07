@@ -3,10 +3,9 @@ import { View, Text, StyleSheet, Switch } from 'react-native';
 
 export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
 
-  const backgroundColor = darkMode ? '#333' : '#fff';
-  const textColor = darkMode ? '#fff' : '#333';
+  const backgroundColor = '#fff';
+  const textColor = '#333';
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
@@ -20,14 +19,17 @@ export default function SettingsScreen() {
           onValueChange={(value) => setNotificationsEnabled(value)}
         />
       </View>
-      <View style={styles.settingItem}>
-        <Text style={[styles.settingText, { color: textColor }]}>
-          Dark Mode
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>About</Text>
+        <Text style={[styles.sectionContent, { color: textColor }]}>
+          This app is designed to help you manage your tasks efficiently, track your progress, and stay organized.
         </Text>
-        <Switch
-          value={darkMode}
-          onValueChange={(value) => setDarkMode(value)}
-        />
+      </View>
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Contact Us</Text>
+        <Text style={[styles.sectionContent, { color: textColor }]}>
+          moin.shaikh2684@gmail.com
+        </Text>
       </View>
     </View>
   );
@@ -52,5 +54,17 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 18,
+  },
+  section: {
+    marginVertical: 15,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  sectionContent: {
+    fontSize: 16,
+    lineHeight: 22,
   },
 });

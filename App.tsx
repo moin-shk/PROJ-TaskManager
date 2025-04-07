@@ -11,10 +11,40 @@ import DashboardScreen from './screens/DashboardScreen';
 import TaskListScreen from './screens/TaskListScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import RedTasksScreen from './screens/RedTasksScreen';
+import YellowTasksScreen from './screens/YellowTasksScreen';
+import GreenTasksScreen from './screens/GreenTasksScreen';
+import CompletedTasksScreen from './screens/CompletedTasksScreen';
 import { supabase } from './supabaseClient';
 
-const AuthStack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+// Define a type for your bottom tab navigator.
+type TabParamList = {
+  Dashboard: undefined;
+  'Tasks List': undefined;
+  Profile: undefined;
+  Settings: undefined;
+};
+
+// Updated RootStackParamList: "Main" now accepts an optional nested parameter.
+type RootStackParamList = {
+  Main: { screen?: keyof TabParamList } | undefined;
+  RedTasksScreen: undefined;
+  YellowTasksScreen: undefined;
+  GreenTasksScreen: undefined;
+  CompletedTasksScreen: undefined;
+};
+
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+// Define a type for your auth stack.
+type AuthStackParamList = {
+  SignIn: undefined;
+  SignUp: undefined;
+};
+
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+
+const Tab = createBottomTabNavigator<TabParamList>();
 
 function AuthStackNavigator({ setUser }: { setUser: (user: any) => void }) {
   return (
@@ -63,9 +93,7 @@ export default function App() {
 
   useEffect(() => {
     async function checkSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUser(session.user);
       }
@@ -75,13 +103,27 @@ export default function App() {
   }, []);
 
   if (!isAuthReady) {
-    // Optionally, render a splash screen or loader here.
+    // Optionally, display a splash screen or loader here.
     return null;
   }
 
   return (
     <NavigationContainer>
-      {user ? <MainTabNavigator setUser={setUser} /> : <AuthStackNavigator setUser={setUser} />}
+      {user ? (
+        <RootStack.Navigator screenOptions={{ headerShown: false }}>
+          {/* Main tab navigator */}
+          <RootStack.Screen name="Main">
+            {(props) => <MainTabNavigator {...props} setUser={setUser} />}
+          </RootStack.Screen>
+          {/* Additional screens */}
+          <RootStack.Screen name="RedTasksScreen" component={RedTasksScreen} options={{ title: 'Red Tasks' }} />
+          <RootStack.Screen name="YellowTasksScreen" component={YellowTasksScreen} options={{ title: 'Yellow Tasks' }} />
+          <RootStack.Screen name="GreenTasksScreen" component={GreenTasksScreen} options={{ title: 'Green Tasks' }} />
+          <RootStack.Screen name="CompletedTasksScreen" component={CompletedTasksScreen} options={{ title: 'Completed Tasks' }} />
+        </RootStack.Navigator>
+      ) : (
+        <AuthStackNavigator setUser={setUser} />
+      )}
     </NavigationContainer>
   );
 }
